@@ -1,0 +1,24 @@
+# TTC Transit Departure Board - Route Data File
+# Stop: King Street & Bay Street (Union Station Area)
+#
+# Format: ROUTE_NUM|ROUTE_NAME|DIRECTION|STOP_NAME|START_HH:MM|END_HH:MM|HEADWAY_MINS|OFFSET_MINS
+#
+# ROUTE_NUM     : TTC route number (e.g. 504)
+# ROUTE_NAME    : Route name (e.g. King)
+# DIRECTION     : Eastbound / Westbound / Northbound / Southbound
+# STOP_NAME     : Name of this stop
+# START_HH:MM   : First departure of the day
+# END_HH:MM     : Last departure of the day
+# HEADWAY_MINS  : Minutes between departures (headway)
+# OFFSET_MINS   : Minutes to offset from start time (for staggering opposite directions)
+
+504|King|Eastbound|King & Bay|05:45|00:30|5|0
+504|King|Westbound|King & Bay|05:45|00:30|5|2
+509|Harbourfront|Eastbound|King & Bay|06:15|23:45|8|0
+509|Harbourfront|Westbound|King & Bay|06:15|23:45|8|3
+514|Cherry|Eastbound|King & Bay|06:00|01:00|10|0
+514|Cherry|Westbound|King & Bay|06:00|01:00|10|4
+6|Bay|Northbound|King & Bay|06:00|23:30|8|1
+6|Bay|Southbound|King & Bay|06:00|23:30|8|5
+121|Fort York Bl|Eastbound|King & Bay|07:00|22:00|12|0
+121|Fort York Bl|Westbound|King & Bay|07:00|22:00|12|6
