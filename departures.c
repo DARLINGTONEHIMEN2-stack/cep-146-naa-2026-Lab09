@@ -1,4 +1,4 @@
-/* Enable POSIX extensions (required for usleep, etc.) */
+/* Enable POSIX extensions (required for select, etc.) */
 #define _POSIX_C_SOURCE 200112L
 
 /*
@@ -9,8 +9,10 @@
  * refreshing countdown board styled in TTC colours (red and white).
  *
  * Features:
- *   - Live terminal UI that refreshes every second (no Enter key needed)
- *   - Countdown timers for the next 3 departures per route
+ *   - Live terminal UI that refreshes every 500 ms (no Enter key needed)
+ *   - Countdown timers showing the next 2 departures per route
+ *   - HH:MM scheduled time displayed alongside each countdown
+ *   - Seconds-level countdown for arrivals under 2 minutes
  *   - Service Alerts: random Delay / Stalled statuses per session
  *   - Direction toggle: press 'd' to cycle All / Eastbound+Northbound /
  *     Westbound+Southbound views
@@ -38,25 +40,37 @@
 #define MAX_NAME_LEN      64          /* Maximum length for names/strings    */
 #define DATA_FILE    "routes.dat"     /* Route data file path                */
 #define REFRESH_MS       500          /* UI refresh interval (milliseconds)  */
-#define SHOW_NEXT          3          /* Departures to display per route     */
+#define SHOW_NEXT          2          /* Departures to display per route     */
 #define ALERT_CHANCE      15          /* % chance a route gets a service alert*/
 #define DELAY_MIN_MINS     3          /* Minimum delay (minutes)             */
 #define DELAY_MAX_MINS    12          /* Maximum delay (minutes)             */
 
+/* Column layout constants (positions within the terminal row) */
+#define COL_ROUTE_NUM     1           /* Route number column start           */
+#define COL_ROUTE_NAME    6           /* Route name column start             */
+#define COL_DIRECTION    24           /* Direction column start              */
+#define COL_DEP1         38           /* First departure countdown column    */
+#define COL_DEP2         51           /* Second departure countdown column   */
+#define COL_STATUS       65           /* Service status column               */
+#define COL_WIDTH_DEP    12           /* Width of each departure cell        */
+#define MIN_COLS         80           /* Minimum terminal width to display   */
+#define MIN_ROWS         10           /* Minimum terminal height to display  */
+
 /* ── Colour pair IDs (ncurses) ──────────────────────────────────────────── */
 
-#define CLR_HEADER     1   /* TTC red background, white text (header bar)   */
-#define CLR_SUBHEADER  2   /* Dark red bg, white text (column labels)       */
-#define CLR_ROUTE_NUM  3   /* Bold yellow on black (route number)           */
-#define CLR_ROUTE_NAME 4   /* White on black (route name & direction)       */
-#define CLR_TIME_GREEN 5   /* Green on black (> 5 min away)                 */
-#define CLR_TIME_YELLOW 6  /* Yellow on black (2-5 min away)                */
-#define CLR_TIME_RED   7   /* Red on black (< 2 min away)                   */
-#define CLR_ALERT_DELAY 8  /* Yellow on dark red (Delay alert)              */
-#define CLR_ALERT_STALL 9  /* White on red (Stalled alert)                  */
-#define CLR_BORDER    10   /* Dark grey border elements                     */
-#define CLR_FOOTER    11   /* Black on white (footer / key hints)           */
-#define CLR_DIM       12   /* Dim white (no upcoming departures message)    */
+#define CLR_HEADER      1   /* TTC red background, white text (header bar)  */
+#define CLR_SUBHEADER   2   /* Red bg, white text (column labels)           */
+#define CLR_ROUTE_NUM   3   /* Bold yellow on black (route number)          */
+#define CLR_ROUTE_NAME  4   /* White on black (route name & direction)      */
+#define CLR_TIME_GREEN  5   /* Green on black (> 5 min away)                */
+#define CLR_TIME_YELLOW 6   /* Yellow on black (2-5 min away)               */
+#define CLR_TIME_RED    7   /* Bold red on black (< 2 min / arriving)       */
+#define CLR_ALERT_DELAY 8   /* Yellow on red (Delay alert)                  */
+#define CLR_ALERT_STALL 9   /* White on red blinking (Stalled alert)        */
+#define CLR_BORDER     10   /* Red separators                               */
+#define CLR_FOOTER     11   /* Black on white (footer / key hints)          */
+#define CLR_DIM        12   /* Dim white on black (secondary info)          */
+#define CLR_TIME_NOW   13   /* Bright red on black (imminent arrival)       */
 
 /* ── Service Status ─────────────────────────────────────────────────────── */
 
@@ -109,6 +123,24 @@ static int hhmm_to_minutes(const char *hhmm)
     return h * 60 + m;
 }
 
+/* ── Utility: convert minutes-from-midnight to "H:MMp" string ───────────── */
+
+/*
+ * Format a timetable time as a compact 12-hour clock string, e.g. "4:47p".
+ * buf must be at least 8 bytes.
+ */
+static void minutes_to_hhmm12(int minutes_from_midnight, char *buf, int buf_len)
+{
+    int total = minutes_from_midnight % 1440;
+    if (total < 0) total += 1440;
+    int h  = total / 60;
+    int m  = total % 60;
+    char ampm = (h < 12) ? 'a' : 'p';
+    if (h == 0)       h = 12;
+    else if (h > 12)  h -= 12;
+    snprintf(buf, buf_len, "%d:%02d%c", h, m, ampm);
+}
+
 /* ── Load routes from data file ─────────────────────────────────────────── */
 
 /*
@@ -152,14 +184,12 @@ static int parse_routes(const char *filename)
         if (headway <= 0) continue;
 
         Route *r = &routes[num_routes];
-        strncpy(r->route_num,   route_num,   sizeof(r->route_num)   - 1);
-        strncpy(r->route_name,  route_name,  sizeof(r->route_name)  - 1);
-        strncpy(r->direction,   direction,   sizeof(r->direction)   - 1);
-        strncpy(r->stop_name,   stop_name,   sizeof(r->stop_name)   - 1);
-        r->route_num[sizeof(r->route_num)-1]   = '\0';
-        r->route_name[sizeof(r->route_name)-1] = '\0';
-        r->direction[sizeof(r->direction)-1]   = '\0';
-        r->stop_name[sizeof(r->stop_name)-1]   = '\0';
+
+        /* Use snprintf to safely copy strings (avoids truncation warnings) */
+        snprintf(r->route_num,  sizeof(r->route_num),  "%s", route_num);
+        snprintf(r->route_name, sizeof(r->route_name), "%s", route_name);
+        snprintf(r->direction,  sizeof(r->direction),  "%s", direction);
+        snprintf(r->stop_name,  sizeof(r->stop_name),  "%s", stop_name);
 
         int start = hhmm_to_minutes(start_str);
         int end   = hhmm_to_minutes(end_str);
@@ -175,7 +205,7 @@ static int parse_routes(const char *filename)
             t += headway;
         }
 
-        r->status       = STATUS_ON_TIME;
+        r->status        = STATUS_ON_TIME;
         r->delay_minutes = 0;
         num_routes++;
     }
@@ -199,12 +229,13 @@ static void assign_alerts(void)
         if (roll < ALERT_CHANCE) {
             /* Decide: stalled (1-in-3 of alerts) or delayed (2-in-3) */
             if (rand() % 3 == 0) {
-                routes[i].status = STATUS_STALLED;
+                routes[i].status        = STATUS_STALLED;
                 routes[i].delay_minutes = 0;
             } else {
-                routes[i].status = STATUS_DELAYED;
+                routes[i].status        = STATUS_DELAYED;
                 routes[i].delay_minutes =
-                    DELAY_MIN_MINS + rand() % (DELAY_MAX_MINS - DELAY_MIN_MINS + 1);
+                    DELAY_MIN_MINS +
+                    rand() % (DELAY_MAX_MINS - DELAY_MIN_MINS + 1);
             }
         }
     }
@@ -229,26 +260,83 @@ static int route_matches_filter(const Route *r)
 /* ── Calculate the next N departure times (accounting for delays) ────────── */
 
 /*
- * get_next_departures() fills 'out' with the next 'count' departure times
- * (in minutes-from-midnight) for route r, starting from 'now_minutes'.
- * Delays are added to each scheduled time.  Returns the number filled.
+ * get_next_departures() fills 'out_minutes' with the next 'count' departure
+ * times (minutes-from-midnight) for route r, starting after 'now_seconds'
+ * seconds from midnight (so we can honour sub-minute delays).
+ * Returns the number of entries filled.
  */
-static int get_next_departures(const Route *r, int now_minutes,
-                               int *out, int count)
+static int get_next_departures(const Route *r, long now_seconds,
+                               int *out_minutes, int count)
 {
     int found = 0;
+    long now_m = now_seconds / 60;   /* current whole-minute mark */
 
-    /* We search across "today" and "tomorrow" in case now is near midnight */
+    /* Search today and "tomorrow" in case we're near midnight */
     for (int wrap = 0; wrap <= 1 && found < count; wrap++) {
-        int base = wrap * 1440;
+        long base = (long)wrap * 1440;
         for (int i = 0; i < r->num_departures && found < count; i++) {
-            int t = r->departures[i] + base + r->delay_minutes;
-            if (t > now_minutes) {
-                out[found++] = t % 1440;
+            long t = (long)r->departures[i] + base + r->delay_minutes;
+            /*
+             * Include a departure if it hasn't fully left yet:
+             * we treat anything still >= now_minutes as upcoming.
+             * Using whole minutes keeps the display stable (no jitter).
+             */
+            if (t > now_m) {
+                out_minutes[found++] = (int)(t % 1440);
             }
         }
     }
     return found;
+}
+
+/* ── Format a departure countdown cell ─────────────────────────────────── */
+
+/*
+ * format_departure_cell() builds a short string like:
+ *   "4m (4:47p)"   — for 4 minutes away
+ *   "45s (4:43p)"  — for 45 seconds away (imminent)
+ *   "** NOW **  "  — for currently departing
+ *
+ * dep_min : departure time in minutes-from-midnight
+ * now_secs: current time in seconds-from-midnight
+ * buf     : output buffer (at least COL_WIDTH_DEP + 1 bytes)
+ * Returns the ncurses colour pair ID to use for this cell.
+ */
+static int format_departure_cell(int dep_min, long now_secs,
+                                 char *buf, int buf_len)
+{
+    long dep_secs  = (long)dep_min * 60;
+    long diff_secs = dep_secs - now_secs;
+    /* Handle midnight wrap */
+    if (diff_secs < -43200) diff_secs += 86400;
+    if (diff_secs >  43200) diff_secs -= 86400;
+
+    char time_str[10];
+    minutes_to_hhmm12(dep_min, time_str, sizeof(time_str));
+
+    int colour;
+
+    if (diff_secs <= 0) {
+        snprintf(buf, buf_len, "** NOW **   ");
+        colour = CLR_TIME_NOW;
+    } else if (diff_secs < 60) {
+        /* Under 1 minute: show seconds */
+        snprintf(buf, buf_len, "%lds (%s) ", diff_secs, time_str);
+        colour = CLR_TIME_RED;
+    } else if (diff_secs < 120) {
+        /* 1-2 minutes */
+        snprintf(buf, buf_len, "1m (%s) ", time_str);
+        colour = CLR_TIME_RED;
+    } else if (diff_secs <= 300) {
+        /* 2-5 minutes */
+        snprintf(buf, buf_len, "%ldm (%s) ", diff_secs / 60, time_str);
+        colour = CLR_TIME_YELLOW;
+    } else {
+        /* Over 5 minutes */
+        snprintf(buf, buf_len, "%ldm (%s) ", diff_secs / 60, time_str);
+        colour = CLR_TIME_GREEN;
+    }
+    return colour;
 }
 
 /* ── ncurses initialisation ─────────────────────────────────────────────── */
@@ -267,7 +355,7 @@ static void init_ncurses(void)
 
     /*
      * TTC colour palette:
-     *   Primary red  : COLOR_RED  (terminal approximation of TTC #DA291C)
+     *   Primary red  : COLOR_RED   (terminal approximation of TTC #DA291C)
      *   Accent black : COLOR_BLACK
      *   Text white   : COLOR_WHITE
      */
@@ -283,40 +371,44 @@ static void init_ncurses(void)
     init_pair(CLR_BORDER,      COLOR_RED,    COLOR_BLACK);
     init_pair(CLR_FOOTER,      COLOR_BLACK,  COLOR_WHITE);
     init_pair(CLR_DIM,         COLOR_WHITE,  COLOR_BLACK);
+    init_pair(CLR_TIME_NOW,    COLOR_RED,    COLOR_BLACK);
 }
 
 /* ── Draw the TTC header bar ────────────────────────────────────────────── */
 
-static void draw_header(int cols, const char *stop_name, time_t now_t)
+/*
+ * Draws two rows of TTC-red header:
+ *   Row 0: "TTC  TORONTO TRANSIT COMMISSION"  |  current time (HH:MM:SS AM/PM)
+ *   Row 1: "STOP: <stop name>"                |  direction filter label
+ */
+static void draw_header(int cols, const char *stop_name, struct tm *lt,
+                        int tick)
 {
-    /* Full-width red bar with TTC branding */
     attron(COLOR_PAIR(CLR_HEADER) | A_BOLD);
 
-    /* Clear the top two rows in red */
+    /* Fill both rows with red background */
     for (int c = 0; c < cols; c++) mvaddch(0, c, ' ');
     for (int c = 0; c < cols; c++) mvaddch(1, c, ' ');
 
-    /* Row 0: TTC logo text + clock */
-    char clock_buf[16];
-    struct tm *lt = localtime(&now_t);
-    strftime(clock_buf, sizeof(clock_buf), "%I:%M:%S %p", lt);
-
+    /* Row 0: TTC branding */
     mvprintw(0, 1, " TTC  TORONTO TRANSIT COMMISSION");
 
-    /* Right-align the clock on row 0 */
+    /* Blinking colon for the live clock feel */
+    char clock_buf[20];
+    if (tick % 2 == 0) {
+        strftime(clock_buf, sizeof(clock_buf), "%I:%M:%S %p", lt);
+    } else {
+        strftime(clock_buf, sizeof(clock_buf), "%I %M %S %p", lt);
+    }
     int clock_col = cols - (int)strlen(clock_buf) - 2;
     if (clock_col > 33) mvprintw(0, clock_col, "%s", clock_buf);
 
-    /* Row 1: Stop name + direction filter */
-    char stop_line[128];
-    snprintf(stop_line, sizeof(stop_line), " STOP: %-30s", stop_name);
-    mvprintw(1, 0, "%s", stop_line);
+    /* Row 1: Stop name and direction filter */
+    mvprintw(1, 1, " STOP: %-28s", stop_name);
 
-    /* Right-align direction filter label */
-    const char *filt = filter_labels[direction_filter];
-    int filt_col = cols - (int)strlen(filt) - 2;
-    if (filt_col > (int)strlen(stop_line))
-        mvprintw(1, filt_col, "%s", filt);
+    const char *filt    = filter_labels[direction_filter];
+    int         filt_col = cols - (int)strlen(filt) - 2;
+    if (filt_col > 38) mvprintw(1, filt_col, "%s", filt);
 
     attroff(COLOR_PAIR(CLR_HEADER) | A_BOLD);
 }
@@ -327,174 +419,162 @@ static void draw_column_headers(int row, int cols)
 {
     attron(COLOR_PAIR(CLR_SUBHEADER) | A_BOLD);
     for (int c = 0; c < cols; c++) mvaddch(row, c, ' ');
-    mvprintw(row, 1,  "%-4s", "RTE");
-    mvprintw(row, 6,  "%-18s", "ROUTE NAME");
-    mvprintw(row, 25, "%-12s", "DIRECTION");
-    mvprintw(row, 38, "%-12s", "DEPARTURES");
-    mvprintw(row, 61, "%-14s", "STATUS");
+    mvprintw(row, COL_ROUTE_NUM,  "%-4s", "RTE");
+    mvprintw(row, COL_ROUTE_NAME, "%-17s", "ROUTE NAME");
+    mvprintw(row, COL_DIRECTION,  "%-13s", "DIRECTION");
+    mvprintw(row, COL_DEP1,       "%-12s", "NEXT");
+    mvprintw(row, COL_DEP2,       "%-12s", "FOLLOWING");
+    mvprintw(row, COL_STATUS,     "%-15s", "STATUS");
     attroff(COLOR_PAIR(CLR_SUBHEADER) | A_BOLD);
-}
-
-/* ── Format a single countdown cell ────────────────────────────────────── */
-
-/*
- * Returns the colour pair to use for a countdown value, and writes
- * a human-readable countdown string into buf.
- */
-static int format_countdown(int mins_away, char *buf, int buf_len)
-{
-    int colour;
-    if (mins_away < 1) {
-        snprintf(buf, buf_len, "ARRIVING");
-        colour = CLR_TIME_RED;
-    } else if (mins_away < 2) {
-        snprintf(buf, buf_len, "1 min");
-        colour = CLR_TIME_RED;
-    } else if (mins_away <= 5) {
-        snprintf(buf, buf_len, "%d mins", mins_away);
-        colour = CLR_TIME_YELLOW;
-    } else {
-        snprintf(buf, buf_len, "%d mins", mins_away);
-        colour = CLR_TIME_GREEN;
-    }
-    return colour;
 }
 
 /* ── Draw one route row ─────────────────────────────────────────────────── */
 
-static void draw_route_row(int row, const Route *r, int now_minutes, int cols)
+/*
+ * Each route occupies two terminal rows:
+ *   separator row : a red dashed line
+ *   data row      : route number | name | direction | dep1 | dep2 | status
+ */
+static void draw_route_row(int row, const Route *r, long now_secs, int cols)
 {
-    /* Horizontal separator line */
+    /* Separator */
     attron(COLOR_PAIR(CLR_BORDER));
     for (int c = 0; c < cols; c++) mvaddch(row, c, '-');
     attroff(COLOR_PAIR(CLR_BORDER));
     row++;
 
-    /* Route number (bold yellow) */
+    /* Route number — bold yellow */
     attron(COLOR_PAIR(CLR_ROUTE_NUM) | A_BOLD);
-    mvprintw(row, 1, "%-4s", r->route_num);
+    mvprintw(row, COL_ROUTE_NUM, "%-4s", r->route_num);
     attroff(COLOR_PAIR(CLR_ROUTE_NUM) | A_BOLD);
 
-    /* Route name */
+    /* Route name and direction — white */
     attron(COLOR_PAIR(CLR_ROUTE_NAME));
-    mvprintw(row, 6,  "%-18s", r->route_name);
-    mvprintw(row, 25, "%-12s", r->direction);
+    mvprintw(row, COL_ROUTE_NAME, "%-17s", r->route_name);
+    mvprintw(row, COL_DIRECTION,  "%-13s", r->direction);
     attroff(COLOR_PAIR(CLR_ROUTE_NAME));
 
-    /* Next departures */
+    /* Fetch next departures */
     int next[SHOW_NEXT];
-    int found = get_next_departures(r, now_minutes, next, SHOW_NEXT);
+    int found = get_next_departures(r, now_secs, next, SHOW_NEXT);
 
-    int col = 38;
-    for (int i = 0; i < found && col < cols - 10; i++) {
-        int diff = next[i] - now_minutes;
-        if (diff < 0) diff += 1440;  /* Wrap past midnight */
+    /* Departure cell columns */
+    int dep_cols[2] = { COL_DEP1, COL_DEP2 };
 
-        char cbuf[16];
-        int clr = format_countdown(diff, cbuf, sizeof(cbuf));
+    for (int i = 0; i < SHOW_NEXT; i++) {
+        if (i < found) {
+            char cell[32];   /* Generous buffer for any countdown format    */
+            int  clr = format_departure_cell(next[i], now_secs,
+                                             cell, sizeof(cell));
+            int bold = (clr == CLR_TIME_RED || clr == CLR_TIME_NOW) ? A_BOLD : 0;
+            int blink = (clr == CLR_TIME_NOW) ? A_BLINK : 0;
 
-        attron(COLOR_PAIR(clr) | (diff < 2 ? A_BOLD : 0));
-        mvprintw(row, col, "%-10s", cbuf);
-        attroff(COLOR_PAIR(clr) | A_BOLD);
-        col += 11;
+            attron(COLOR_PAIR(clr) | bold | blink);
+            mvprintw(row, dep_cols[i], "%-12s", cell);
+            attroff(COLOR_PAIR(clr) | bold | blink);
+        } else {
+            /* No more departures for today */
+            attron(COLOR_PAIR(CLR_DIM) | A_DIM);
+            mvprintw(row, dep_cols[i], "%-12s", "---");
+            attroff(COLOR_PAIR(CLR_DIM) | A_DIM);
+        }
     }
 
-    if (found == 0) {
-        attron(COLOR_PAIR(CLR_DIM) | A_DIM);
-        mvprintw(row, 38, "No service");
-        attroff(COLOR_PAIR(CLR_DIM) | A_DIM);
-    }
-
-    /* Service alert badge */
-    if (col > 60) col = 61;
+    /* Service status badge */
     if (r->status == STATUS_STALLED) {
         attron(COLOR_PAIR(CLR_ALERT_STALL) | A_BOLD | A_BLINK);
-        mvprintw(row, 61, "** STALLED **");
+        mvprintw(row, COL_STATUS, "%-15s", "** STALLED **");
         attroff(COLOR_PAIR(CLR_ALERT_STALL) | A_BOLD | A_BLINK);
     } else if (r->status == STATUS_DELAYED) {
+        char delay_str[20];
+        snprintf(delay_str, sizeof(delay_str), "DELAY +%d min", r->delay_minutes);
         attron(COLOR_PAIR(CLR_ALERT_DELAY) | A_BOLD);
-        mvprintw(row, 61, "DELAY +%d min ", r->delay_minutes);
+        mvprintw(row, COL_STATUS, "%-15s", delay_str);
         attroff(COLOR_PAIR(CLR_ALERT_DELAY) | A_BOLD);
     } else {
         attron(COLOR_PAIR(CLR_TIME_GREEN));
-        mvprintw(row, 61, "On Time      ");
+        mvprintw(row, COL_STATUS, "%-15s", "On Time");
         attroff(COLOR_PAIR(CLR_TIME_GREEN));
     }
 }
 
 /* ── Draw the footer / key-binding hint bar ─────────────────────────────── */
 
-static void draw_footer(int rows, int cols)
+static void draw_footer(int rows, int cols, int num_visible)
 {
     int row = rows - 1;
     attron(COLOR_PAIR(CLR_FOOTER) | A_BOLD);
     for (int c = 0; c < cols; c++) mvaddch(row, c, ' ');
-    mvprintw(row, 1, " [D] Toggle Direction   [Q] Quit   "
-                     "Refreshes every second");
+    mvprintw(row, 1, " [D] Toggle Direction   [Q] Quit"
+                     "   Showing %d route(s)   Live refresh", num_visible);
     attroff(COLOR_PAIR(CLR_FOOTER) | A_BOLD);
 }
 
 /* ── Main render pass ───────────────────────────────────────────────────── */
 
-static void render(void)
+static void render(int tick)
 {
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
 
-    /* Suppress output if terminal is too narrow to look right */
-    if (cols < 50 || rows < 8) {
+    if (cols < MIN_COLS || rows < MIN_ROWS) {
         clear();
-        mvprintw(0, 0, "Terminal too small. Please resize to at least 80x20.");
+        mvprintw(0, 0, "Terminal too small — please resize to at least %dx%d.",
+                 MIN_COLS, MIN_ROWS);
         refresh();
         return;
     }
 
     clear();
 
-    /* Current time */
-    time_t now_t    = time(NULL);
+    /* Current time — capture seconds for sub-minute countdown */
+    time_t    now_t = time(NULL);
     struct tm *lt   = localtime(&now_t);
-    int now_minutes = lt->tm_hour * 60 + lt->tm_min;
+    long now_secs   = (long)lt->tm_hour * 3600
+                    + (long)lt->tm_min  * 60
+                    + (long)lt->tm_sec;
 
-    /* Determine stop name from first loaded route */
+    /* Stop name from the first loaded route */
     const char *stop_name = (num_routes > 0) ? routes[0].stop_name
                                               : "Unknown Stop";
 
-    draw_header(cols, stop_name, now_t);
+    draw_header(cols, stop_name, lt, tick);
     draw_column_headers(2, cols);
 
-    /* Render each visible route row (2 display rows each: separator + data) */
-    int draw_row = 3;
-    int visible  = 0;
+    /* Render route rows — each takes 2 terminal rows (separator + data) */
+    int draw_row    = 3;
+    int num_visible = 0;
 
     for (int i = 0; i < num_routes; i++) {
         if (!route_matches_filter(&routes[i])) continue;
 
-        /* Stop drawing if we've run out of vertical space */
+        /* Stop if we've run out of vertical room (reserve footer + separator) */
         if (draw_row + 2 > rows - 2) {
             attron(COLOR_PAIR(CLR_DIM) | A_DIM);
-            mvprintw(draw_row, 2, "... more routes not shown (resize terminal)");
+            mvprintw(draw_row, 2,
+                     "... %d more route(s) not shown — resize terminal to see all",
+                     num_routes - i);
             attroff(COLOR_PAIR(CLR_DIM) | A_DIM);
             break;
         }
 
-        draw_route_row(draw_row, &routes[i], now_minutes, cols);
+        draw_route_row(draw_row, &routes[i], now_secs, cols);
         draw_row += 2;
-        visible++;
+        num_visible++;
     }
 
-    /* Bottom separator */
-    if (draw_row < rows - 1) {
+    /* Bottom separator bar */
+    if (draw_row <= rows - 2) {
         attron(COLOR_PAIR(CLR_BORDER));
         for (int c = 0; c < cols; c++) mvaddch(draw_row, c, '=');
         attroff(COLOR_PAIR(CLR_BORDER));
     }
 
-    if (visible == 0) {
-        mvprintw(5, 2, "No routes match the current filter.");
+    if (num_visible == 0) {
+        mvprintw(5, 2, "No routes match the current direction filter.");
     }
 
-    draw_footer(rows, cols);
+    draw_footer(rows, cols, num_visible);
     refresh();
 }
 
@@ -502,27 +582,32 @@ static void render(void)
 
 int main(void)
 {
-    /* Load route data */
+    /* Load route and schedule data */
     if (parse_routes(DATA_FILE) == 0) {
         fprintf(stderr,
             "Error: Could not read route data from '%s'.\n"
-            "Make sure the file exists in the current directory.\n",
+            "Make sure the file is in the current directory.\n",
             DATA_FILE);
         return EXIT_FAILURE;
     }
 
-    /* Assign random service alerts for this session */
+    /* Randomly assign service alerts for this session */
     assign_alerts();
 
-    /* Initialise ncurses */
+    /* Initialise the ncurses terminal UI */
     init_ncurses();
 
-    /* Main event loop — refresh every REFRESH_MS milliseconds */
+    /*
+     * Main event loop.
+     * We keep a tick counter so the clock colon can blink (cosmetic).
+     * getch() is non-blocking (nodelay was set in init_ncurses).
+     */
     int running = 1;
-    while (running) {
-        render();
+    int tick    = 0;
 
-        /* Poll for keypress without blocking */
+    while (running) {
+        render(tick++);
+
         int ch = getch();
         switch (tolower(ch)) {
             case 'q':
@@ -535,7 +620,7 @@ int main(void)
                 break;
         }
 
-        /* Sleep for REFRESH_MS milliseconds between renders using select() */
+        /* Sleep for REFRESH_MS milliseconds using select() (POSIX portable) */
         struct timeval tv;
         tv.tv_sec  = 0;
         tv.tv_usec = REFRESH_MS * 1000;
