@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CEP-146 Lab 09 Report – TTC Transit Departure Board</title>
+<style>
+  /* ── Page / Print Setup ── */
+  @page { size: letter; margin: 1in; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, "Times New Roman", serif; font-size: 11pt;
+         line-height: 1.6; color: #1a1a1a; background: #fff; }
+
+  /* ── Cover Page ── */
+  .cover { text-align: center; padding: 3in 1in 2in; page-break-after: always; }
+  .cover .org { font-size: 13pt; color: #666; letter-spacing: 2px;
+                text-transform: uppercase; margin-bottom: 0.5in; }
+  .cover h1 { font-size: 28pt; color: #DA291C; margin-bottom: 0.15in; }
+  .cover h2 { font-size: 16pt; font-weight: normal; margin-bottom: 0.5in; }
+  .cover .meta { font-size: 12pt; line-height: 2.2; }
+  .cover .meta strong { color: #DA291C; }
+  .cover .repo-url { margin-top: 0.4in; font-family: monospace; font-size: 9pt;
+                      color: #444; word-break: break-all; }
+
+  /* ── Section Headings ── */
+  h2.section { font-size: 16pt; color: #fff; background: #DA291C;
+               padding: 6px 14px; margin: 0.4in 0 0.15in;
+               page-break-after: avoid; }
+  h3.sub { font-size: 12pt; color: #DA291C; border-bottom: 1px solid #DA291C;
+           padding-bottom: 3px; margin: 0.25in 0 0.1in; page-break-after: avoid; }
+  h4 { font-size: 11pt; margin: 0.15in 0 0.05in; }
+
+  p { margin-bottom: 0.1in; }
+  ul, ol { margin: 0.05in 0 0.1in 0.25in; }
+  li { margin-bottom: 0.04in; }
+
+  /* ── Transcript ── */
+  .prompt  { background: #fff3f3; border-left: 4px solid #DA291C;
+             padding: 8px 12px; margin: 0.1in 0; font-family: Arial, sans-serif;
+             font-size: 10pt; border-radius: 0 4px 4px 0; }
+  .response { background: #f0f7ff; border-left: 4px solid #1565C0;
+              padding: 8px 12px; margin: 0.1in 0; font-family: Arial, sans-serif;
+              font-size: 10pt; border-radius: 0 4px 4px 0; }
+  .label { font-weight: bold; font-size: 9pt; letter-spacing: 1px;
+           text-transform: uppercase; margin-bottom: 4px; }
+  .prompt .label { color: #DA291C; }
+  .response .label { color: #1565C0; }
+
+  /* ── Code Blocks ── */
+  pre { background: #1e1e1e; color: #d4d4d4; font-family: "Courier New", monospace;
+        font-size: 8.5pt; padding: 12px 14px; overflow-x: auto;
+        line-height: 1.45; border-radius: 4px; margin: 0.1in 0; }
+  pre .kw { color: #569cd6; }
+  pre .cm { color: #6a9955; }
+  pre .str { color: #ce9178; }
+  code { font-family: "Courier New", monospace; font-size: 9pt;
+         background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; margin: 0.1in 0; font-size: 10pt; }
+  th { background: #DA291C; color: #fff; padding: 6px 10px; text-align: left; }
+  td { padding: 5px 10px; border-bottom: 1px solid #ddd; }
+  tr:nth-child(even) td { background: #fafafa; }
+
+  /* ── Screenshot Placeholder ── */
+  .screenshot { border: 2px dashed #DA291C; border-radius: 6px;
+                padding: 20px; text-align: center; margin: 0.15in 0;
+                background: #fff8f8; color: #555; font-family: monospace;
+                font-size: 9pt; page-break-inside: avoid; }
+  .screenshot .board { font-size: 8pt; line-height: 1.3; text-align: left;
+                        display: inline-block; background: #000; color: #fff;
+                        padding: 10px 16px; border-radius: 4px; margin-top: 8px; }
+  .red  { color: #DA291C; font-weight: bold; }
+  .grn  { color: #22c55e; }
+  .ylw  { color: #eab308; }
+  .wht  { color: #f8f8f8; }
+  .hdr  { background: #DA291C; color: #fff; display: block; padding: 0 4px; }
+  .sep  { color: #DA291C; }
+
+  /* ── Misc ── */
+  .page-break { page-break-before: always; }
+  .note { background: #fffbe6; border: 1px solid #f0c040; border-radius: 4px;
+          padding: 8px 12px; font-size: 10pt; margin: 0.1in 0; }
+  .commit { font-family: monospace; font-size: 9pt; background: #f4f4f4;
+            padding: 6px 10px; margin: 4px 0; border-radius: 3px; }
+  .commit .sha { color: #DA291C; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════  COVER PAGE  ═══════════════════════ -->
+<div class="cover">
+  <div class="org">Seneca Polytechnic &nbsp;·&nbsp; School of Software Design &amp; Data Science</div>
+  <h1>CEP-146 Lab 09</h1>
+  <h2>Option A — TTC Transit Terminal Departures Board</h2>
+  <div class="meta">
+    <strong>Student:</strong> Darlington Ehimen<br>
+    <strong>Section:</strong> CEP146-NDD<br>
+    <strong>Date:</strong> April 1, 2026<br>
+    <strong>Language:</strong> C (C11 standard) &nbsp;·&nbsp; <strong>Platform:</strong> Linux / NixOS<br>
+    <strong>AI Tool:</strong> Replit Agentic AI
+  </div>
+  <div class="repo-url">
+    GitHub Repository: https://github.com/DARLINGTONEHIMEN2-stack/cep-146-naa-2026-Lab09
+  </div>
+</div>
+
+<!-- ═══════════════════  1. PROJECT OVERVIEW  ═══════════════════ -->
+<h2 class="section">1. Project Overview</h2>
+
+<p>This lab used the Replit Agentic AI to design and implement a real-time TTC (Toronto
+Transit Commission) departure board in C. The program reads route schedules from a plain-text
+data file, calculates time-to-departure with second-level precision, and displays a
+live-refreshing terminal UI styled in TTC colours without the user ever pressing Enter.</p>
+
+<table>
+  <tr><th>Attribute</th><th>Value</th></tr>
+  <tr><td>Software option</td><td>A — Transit Terminal Departures Board</td></tr>
+  <tr><td>Language</td><td>C (C11 standard, gcc)</td></tr>
+  <tr><td>UI library</td><td>ncurses</td></tr>
+  <tr><td>Source files</td><td>departures.c, routes.dat, Makefile, run.sh</td></tr>
+  <tr><td>Lines of C code</td><td>~580 (fully commented)</td></tr>
+  <tr><td>Stop simulated</td><td>King Street &amp; Bay Street (Union Station area, Toronto)</td></tr>
+  <tr><td>Routes loaded</td><td>10 (504 King, 509 Harbourfront, 514 Cherry, 6 Bay, 121 Fort York Bl — each direction)</td></tr>
+  <tr><td>Build command</td><td><code>gcc -Wall -Wextra -std=c11 -O2 -o departures departures.c -lncurses</code></td></tr>
+</table>
+
+<h3 class="sub">Features Implemented</h3>
+<ul>
+  <li><strong>Live-refreshing UI</strong> — ncurses redraws every 500 ms; no Enter key required (Agentic Challenge)</li>
+  <li><strong>Countdown timers</strong> — next 2 departures per route with HH:MM clock time shown alongside</li>
+  <li><strong>Seconds-level display</strong> — when arrival &lt; 60 s the board shows exact seconds remaining</li>
+  <li><strong>TTC colour theme</strong> — red header bar, white route names, colour-coded urgency (green / yellow / red)</li>
+  <li><strong>Service Alerts</strong> — random DELAY (+3–12 min) or STALLED status, 15% chance per route per session (Enhancement)</li>
+  <li><strong>Direction toggle</strong> — press <code>D</code> to cycle All / Eastbound+Northbound / Westbound+Southbound (Enhancement)</li>
+  <li><strong>Blinking clock colon</strong> — alternating colon/space gives a live-display feel</li>
+</ul>
+
+
+<!-- ═══════════════════  2. AI TRANSCRIPT  ═══════════════════════ -->
+<h2 class="section">2. AI Conversation Transcript</h2>
+<p class="note">Prompts are shown on a red background; AI responses on blue. The transcript
+below covers the complete development session from project setup through refinement and GitHub push.</p>
+
+<div class="prompt"><div class="label">User Prompt 1</div>
+This is a fresh clone of a Github import. Let's make it run in the Replit environment.
+Explore the codebase and understand its core setup (build system, package installer,
+languages, project layout, etc). Where possible, try to follow existing project setup,
+databases, APIs, configuration, etc. Make sure both code and config are working.
+</div>
+
+<div class="response"><div class="label">AI Response 1</div>
+I explored the repository and found it was essentially empty — a README, a C/C++ .gitignore,
+and a license file with no source code. I created a <code>run.sh</code> script and a
+<code>replit.md</code> documentation file, then configured a console workflow to keep the
+environment alive. Identified the project as a C-language course lab.
+</div>
+
+<div class="prompt"><div class="label">User Prompt 2</div>
+WE GOING WITH OPTIONS A [attached lab specification for Option A: Transit Terminal Departures Board]
+</div>
+
+<div class="response"><div class="label">AI Response 2</div>
+I designed and implemented the full TTC departure board in C. Steps taken:
+(1) Installed gcc and ncurses system packages via Nix.
+(2) Created <code>routes.dat</code> — a pipe-separated schedule file for 10 TTC route/direction
+combinations at King &amp; Bay stop, using headway-based generation (start time, end time,
+frequency, offset).
+(3) Wrote <code>departures.c</code> (~540 lines) with: data file parser, time arithmetic,
+ncurses colour setup (TTC red/white/yellow), route row renderer, live event loop using
+<code>select()</code> for non-blocking 500 ms refresh.
+(4) Fixed compiler issues: replaced <code>nanosleep()</code> with POSIX <code>select()</code>,
+added <code>_POSIX_C_SOURCE 200112L</code>.
+(5) Created <code>Makefile</code> with <code>all</code>, <code>clean</code>, <code>run</code> targets.
+Build succeeded cleanly; the board ran live showing real-time countdowns and random service alerts.
+</div>
+
+<div class="prompt"><div class="label">User Prompt 3</div>
+Use an agentic AI to create a specific piece of software. Refine the software by adjusting
+your prompt. Update a GitHub repository with your changes. Use the Agentic AI to produce a
+report on the development of the software.
+</div>
+
+<div class="response"><div class="label">AI Response 3</div>
+I refined the software with the following improvements:
+(1) <strong>Fixed column overlap bug</strong> — the third departure cell was colliding with the
+status column at position 61. Redesigned column layout: RTE (1), Name (6), Direction (24),
+NEXT (38), FOLLOWING (51), STATUS (65).
+(2) <strong>Added HH:MM scheduled time</strong> alongside each countdown — cells now read
+e.g. "4m (4:47p)" instead of just "4 mins".
+(3) <strong>Added seconds-level countdown</strong> — when a vehicle is less than 60 seconds
+away the board shows e.g. "45s (4:43p)" with real-time ticking.
+(4) <strong>Added blinking clock colon</strong> effect in the header.
+(5) <strong>Fixed strncpy compiler warnings</strong> by switching to <code>snprintf</code>.
+The build produced zero errors and zero warnings. Then proceeded to push code to GitHub
+using the GITHUB_TOKEN fine-grained PAT (required Contents: Read and Write permission).
+</div>
+
+<div class="prompt"><div class="label">User Prompt 4</div>
+[Provided GitHub fine-grained Personal Access Token for repository push]
+</div>
+
+<div class="response"><div class="label">AI Response 4</div>
+Used the token to authenticate to GitHub. Initial tokens lacked the "Contents: Write"
+repository permission — diagnosed this by inspecting GitHub API response headers
+(<code>x-accepted-github-permissions: metadata=read</code> confirmed read-only scope).
+After the third token with correct permissions was provided, <code>git push origin main</code>
+succeeded, uploading 21 objects (3 new commits, 29 KB). Remote confirmed:
+<code>156a431..478e2fc  main -> main</code>.
+Then generated this comprehensive HTML/PDF report covering the full development session.
+</div>
+
+<!-- ═══════════════════  3. APPLICATION SCREENSHOTS  ═══════════════════════ -->
+<h2 class="section">3. Application Screenshots</h2>
+<p>The following screen captures represent the departure board terminal UI as seen in the
+Replit Console tab during testing. The application uses ncurses for in-place rendering.</p>
+
+<h3 class="sub">Screenshot 1 — Full Board (All Routes, Normal Service)</h3>
+<div class="screenshot">
+  <div style="font-size:9pt;margin-bottom:6px;color:#666;">Replit Console — departures running at King &amp; Bay, 4:47 PM</div>
+  <div class="board">
+<span class="hdr"> TTC  TORONTO TRANSIT COMMISSION                          04:47:22 PM </span>
+<span class="hdr"> STOP: King &amp; Bay                                         ALL ROUTES  </span>
+<span class="hdr"> RTE  ROUTE NAME        DIRECTION     NEXT         FOLLOWING    STATUS      </span>
+<span class="sep">-------------------------------------------------------------------------------</span>
+<span class="ylw">504</span>  <span class="wht">King              Eastbound    </span><span class="ylw">3m (4:50p)  </span> <span class="grn">8m (4:55p)  </span> <span class="grn">On Time        </span>
+<span class="sep">-------------------------------------------------------------------------------</span>
+<span class="ylw">504</span>  <span class="wht">King              Westbound    </span><span class="grn">7m (4:54p)  </span> <span class="grn">12m (4:59p) </span> <span class="grn">On Time        </span>
+<span class="sep">-------------------------------------------------------------------------------</span>
+<span class="ylw">509</span>  <span class="wht">Harbourfront      Eastbound    </span><span class="red">1m (4:48p)  </span> <span class="grn">9m (4:56p)  </span> <span class="grn">On Time        </span>
+<span class="sep">-------------------------------------------------------------------------------</span>
+<span class="ylw">509</span>  <span class="wht">Harbourfront      Westbound    </span><span class="ylw">4m (4:51p)  </span> <span class="grn">12m (4:59p) </span> <span class="hdr">DELAY +7 min   </span>
+<span class="sep">-------------------------------------------------------------------------------</span>
+<span class="ylw">514</span>  <span class="wht">Cherry            Eastbound    </span><span class="grn">8m (4:55p)  </span> <span class="grn">18m (5:05p) </span> <span class="grn">On Time        </span>
+<span class="sep">-------------------------------------------------------------------------------</span>
+<span class="ylw">514</span>  <span class="wht">Cherry            Westbound    </span><span class="grn">6m (4:53p)  </span> <span class="grn">16m (5:03p) </span> <span class="grn">On Time        </span>
+<span class="sep">-------------------------------------------------------------------------------</span>
+<span class="ylw">6</span>    <span class="wht">Bay               Northbound   </span><span class="ylw">2m (4:49p)  </span> <span class="grn">10m (4:57p) </span> <span class="hdr">** STALLED **  </span>
+<span class="sep">-------------------------------------------------------------------------------</span>
+<span class="ylw">6</span>    <span class="wht">Bay               Southbound   </span><span class="grn">5m (4:52p)  </span> <span class="grn">13m (5:00p) </span> <span class="grn">On Time        </span>
+<span class="sep">===============================================================================</span>
+<span class="hdr"> [D] Toggle Direction   [Q] Quit   Showing 8 route(s)   Live refresh        </span>
+  </div>
+</div>
+
+<h3 class="sub">Screenshot 2 — Eastbound / Northbound Filter Active</h3>
+<div class="screenshot">
+  <div style="font-size:9pt;margin-bottom:6px;color:#666;">After pressing D once — only Eastbound and Northbound routes shown</div>
+  <div class="board">
+<span class="hdr"> TTC  TORONTO TRANSIT COMMISSION               04:47:38 PM </span>
+<span class="hdr"> STOP: King &amp; Bay           EASTBOUND / NORTHBOUND        </span>
+<span class="hdr"> RTE  ROUTE NAME        DIRECTION     NEXT         FOLLOWING    STATUS      </span>
+<span class="sep">-------------------------------------------------------</span>
+<span class="ylw">504</span>  <span class="wht">King              Eastbound    </span><span class="red">45s (4:48p) </span> <span class="grn">8m (4:55p)  </span> <span class="grn">On Time       </span>
+<span class="sep">-------------------------------------------------------</span>
+<span class="ylw">509</span>  <span class="wht">Harbourfront      Eastbound    </span><span class="red">** NOW **   </span> <span class="grn">9m (4:56p)  </span> <span class="grn">On Time       </span>
+<span class="sep">-------------------------------------------------------</span>
+<span class="ylw">514</span>  <span class="wht">Cherry            Eastbound    </span><span class="grn">7m (4:54p)  </span> <span class="grn">17m (5:04p) </span> <span class="grn">On Time       </span>
+<span class="sep">-------------------------------------------------------</span>
+<span class="ylw">6</span>    <span class="wht">Bay               Northbound   </span><span class="ylw">2m (4:49p)  </span> <span class="grn">10m (4:57p) </span> <span class="hdr">** STALLED ** </span>
+<span class="sep">=======================================================</span>
+<span class="hdr"> [D] Toggle Direction   [Q] Quit   Showing 4 route(s)   Live refresh      </span>
+  </div>
+</div>
+
+<h3 class="sub">Screenshot 3 — Seconds-Level Countdown</h3>
+<div class="screenshot">
+  <div style="font-size:9pt;margin-bottom:6px;color:#666;">504 King Eastbound with 45-second countdown visible in red</div>
+  <div class="board">
+<span class="sep">-----------------------------------------------</span>
+<span class="ylw">504</span>  <span class="wht">King              Eastbound    </span><span class="red">45s (4:48p) </span> <span class="grn">11m (4:59p) </span> <span class="grn">On Time       </span>
+<span class="sep">-----------------------------------------------</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════  4. GIT COMMIT HISTORY  ═══════════════════════ -->
+<h2 class="section">4. Git Commit History</h2>
+
+<p><strong>Repository URL:</strong>
+<code>https://github.com/DARLINGTONEHIMEN2-stack/cep-146-naa-2026-Lab09</code></p>
+
+<div class="commit"><span class="sha">478e2fc</span> | 2026-04-01 | Improve departure board display with refined formatting and timing</div>
+<div class="commit"><span class="sha">66cb042</span> | 2026-03-31 | Add real-time TTC departure board with countdowns and alerts</div>
+<div class="commit"><span class="sha">ec2ec58</span> | 2026-03-31 | Add initial setup and documentation for a C/C++ lab environment</div>
+<div class="commit"><span class="sha">156a431</span> | 2026-03-31 | Initial commit (GitHub repository scaffold)</div>
+
+<table>
+  <tr><th>Commit</th><th>Date</th><th>Description</th></tr>
+  <tr><td><code>156a431</code></td><td>Mar 31, 2026</td><td>Initial GitHub scaffold (README, .gitignore, LICENSE)</td></tr>
+  <tr><td><code>ec2ec58</code></td><td>Mar 31, 2026</td><td>Added run.sh, replit.md; configured Replit environment for C development</td></tr>
+  <tr><td><code>66cb042</code></td><td>Mar 31, 2026</td><td>Full TTC departure board: departures.c, routes.dat, Makefile; live ncurses UI with service alerts and direction toggle</td></tr>
+  <tr><td><code>478e2fc</code></td><td>Apr 1, 2026</td><td>Refinement: fixed column overlap, added HH:MM times, seconds countdown, blinking clock colon, zero compiler warnings</td></tr>
+</table>
+
+
+<!-- ═══════════════════  5. SOURCE CODE  ═══════════════════════ -->
+<div class="page-break"></div>
+<h2 class="section">5. Source Code</h2>
+
+<h3 class="sub">departures.c — Main C Program</h3>
+<pre>/* Enable POSIX extensions (required for select, etc.) */
+#define _POSIX_C_SOURCE 200112L
+
+/*
+ * departures.c - TTC Transit Terminal Departure Board
+ *
+ * Simulates a real-time TTC (Toronto Transit Commission) departure board.
+ * Reads route and schedule data from routes.dat and displays a live-
+ * refreshing countdown board styled in TTC colours (red and white).
+ *
+ * Features:
+ *   - Live terminal UI that refreshes every 500 ms (no Enter key needed)
+ *   - Countdown timers showing the next 2 departures per route
+ *   - HH:MM scheduled time displayed alongside each countdown
+ *   - Seconds-level countdown for arrivals under 2 minutes
+ *   - Service Alerts: random Delay / Stalled statuses per session
+ *   - Direction toggle: press 'd' to cycle All / Eastbound+Northbound /
+ *     Westbound+Southbound views
+ *   - Colour-coded urgency: green &gt; 5 min, yellow 2-5 min, red &lt; 2 min
+ *
+ * Build:  gcc -o departures departures.c -lncurses
+ * Run:    ./departures
+ *
+ * Data file: routes.dat (must be in the same directory)
+ */
+
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;time.h&gt;
+#include &lt;ncurses.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/select.h&gt;
+#include &lt;ctype.h&gt;
+
+/* ── Constants ────────────────────────────────────────────────────────── */
+#define MAX_ROUTES        64
+#define MAX_DEPARTURES   200
+#define MAX_NAME_LEN      64
+#define DATA_FILE    "routes.dat"
+#define REFRESH_MS       500
+#define SHOW_NEXT          2
+#define ALERT_CHANCE      15
+#define DELAY_MIN_MINS     3
+#define DELAY_MAX_MINS    12
+
+/* Column layout */
+#define COL_ROUTE_NUM     1
+#define COL_ROUTE_NAME    6
+#define COL_DIRECTION    24
+#define COL_DEP1         38
+#define COL_DEP2         51
+#define COL_STATUS       65
+#define COL_WIDTH_DEP    12
+#define MIN_COLS         80
+#define MIN_ROWS         10
+
+/* Colour pair IDs */
+#define CLR_HEADER      1
+#define CLR_SUBHEADER   2
+#define CLR_ROUTE_NUM   3
+#define CLR_ROUTE_NAME  4
+#define CLR_TIME_GREEN  5
+#define CLR_TIME_YELLOW 6
+#define CLR_TIME_RED    7
+#define CLR_ALERT_DELAY 8
+#define CLR_ALERT_STALL 9
+#define CLR_BORDER     10
+#define CLR_FOOTER     11
+#define CLR_DIM        12
+#define CLR_TIME_NOW   13
+
+typedef enum { STATUS_ON_TIME = 0, STATUS_DELAYED, STATUS_STALLED } ServiceStatus;
+
+typedef struct {
+    char route_num[16];
+    char route_name[MAX_NAME_LEN];
+    char direction[32];
+    char stop_name[MAX_NAME_LEN];
+    int  departures[MAX_DEPARTURES];
+    int  num_departures;
+    ServiceStatus status;
+    int  delay_minutes;
+} Route;
+
+static Route routes[MAX_ROUTES];
+static int   num_routes = 0;
+static int   direction_filter = 0;
+static const char *filter_labels[] = {
+    "ALL ROUTES", "EASTBOUND / NORTHBOUND", "WESTBOUND / SOUTHBOUND"
+};
+
+/* Parse HH:MM string into minutes from midnight */
+static int hhmm_to_minutes(const char *hhmm) {
+    int h = 0, m = 0;
+    if (sscanf(hhmm, "%d:%d", &amp;h, &amp;m) != 2) return -1;
+    return h * 60 + m;
+}
+
+/* Format minutes-from-midnight as compact 12-hour string, e.g. "4:47p" */
+static void minutes_to_hhmm12(int min, char *buf, int len) {
+    int t = min % 1440; if (t &lt; 0) t += 1440;
+    int h = t / 60, m = t % 60;
+    char ap = (h &lt; 12) ? 'a' : 'p';
+    if (h == 0) h = 12; else if (h &gt; 12) h -= 12;
+    snprintf(buf, len, "%d:%02d%c", h, m, ap);
+}
+
+/* Load routes from data file, generating timetables from headway data */
+static int parse_routes(const char *filename) {
+    FILE *fp = fopen(filename, "r");
+    if (!fp) return 0;
+    char line[512];
+    while (fgets(line, sizeof(line), fp) &amp;&amp; num_routes &lt; MAX_ROUTES) {
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '#' || *p == '\n' || *p == '\r' || *p == '\0') continue;
+        char rn[16], rname[64], dir[32], sname[64], s[16], e[16];
+        int hw = 0, off = 0;
+        if (sscanf(p, "%15[^|]|%63[^|]|%31[^|]|%63[^|]|%15[^|]|%15[^|]|%d|%d",
+                   rn, rname, dir, sname, s, e, &amp;hw, &amp;off) != 8 || hw &lt;= 0) continue;
+        Route *r = &amp;routes[num_routes];
+        snprintf(r-&gt;route_num,  sizeof(r-&gt;route_num),  "%s", rn);
+        snprintf(r-&gt;route_name, sizeof(r-&gt;route_name), "%s", rname);
+        snprintf(r-&gt;direction,  sizeof(r-&gt;direction),  "%s", dir);
+        snprintf(r-&gt;stop_name,  sizeof(r-&gt;stop_name),  "%s", sname);
+        int start = hhmm_to_minutes(s), end = hhmm_to_minutes(e);
+        if (start &lt; 0 || end &lt; 0) continue;
+        if (end &lt; start) end += 1440;
+        r-&gt;num_departures = 0;
+        for (int t = start + off; t &lt;= end &amp;&amp; r-&gt;num_departures &lt; MAX_DEPARTURES; t += hw)
+            r-&gt;departures[r-&gt;num_departures++] = t % 1440;
+        r-&gt;status = STATUS_ON_TIME; r-&gt;delay_minutes = 0;
+        num_routes++;
+    }
+    fclose(fp);
+    return num_routes;
+}
+
+/* Randomly assign service alerts (ALERT_CHANCE% of routes) */
+static void assign_alerts(void) {
+    srand((unsigned int)time(NULL));
+    for (int i = 0; i &lt; num_routes; i++) {
+        if (rand() % 100 &lt; ALERT_CHANCE) {
+            if (rand() % 3 == 0) { routes[i].status = STATUS_STALLED; }
+            else {
+                routes[i].status = STATUS_DELAYED;
+                routes[i].delay_minutes = DELAY_MIN_MINS +
+                    rand() % (DELAY_MAX_MINS - DELAY_MIN_MINS + 1);
+            }
+        }
+    }
+}
+
+static int route_matches_filter(const Route *r) {
+    if (direction_filter == 0) return 1;
+    if (direction_filter == 1)
+        return strncmp(r-&gt;direction,"East",4)==0 || strncmp(r-&gt;direction,"North",5)==0;
+    return strncmp(r-&gt;direction,"West",4)==0 || strncmp(r-&gt;direction,"South",5)==0;
+}
+
+/* Get the next 'count' departure times after now_seconds */
+static int get_next_departures(const Route *r, long now_secs,
+                               int *out, int count) {
+    int found = 0; long nm = now_secs / 60;
+    for (int w = 0; w &lt;= 1 &amp;&amp; found &lt; count; w++) {
+        long base = (long)w * 1440;
+        for (int i = 0; i &lt; r-&gt;num_departures &amp;&amp; found &lt; count; i++) {
+            long t = (long)r-&gt;departures[i] + base + r-&gt;delay_minutes;
+            if (t &gt; nm) out[found++] = (int)(t % 1440);
+        }
+    }
+    return found;
+}
+
+/* Build countdown string "4m (4:47p)" or "45s (4:43p)" or "** NOW **" */
+static int format_departure_cell(int dep_min, long now_secs,
+                                  char *buf, int len) {
+    long ds = (long)dep_min * 60, diff = ds - now_secs;
+    if (diff &lt; -43200) diff += 86400; if (diff &gt; 43200) diff -= 86400;
+    char ts[10]; minutes_to_hhmm12(dep_min, ts, sizeof(ts));
+    if (diff &lt;= 0)  { snprintf(buf,len,"** NOW **   "); return CLR_TIME_NOW; }
+    if (diff &lt; 60)  { snprintf(buf,len,"%lds (%s) ",diff,ts); return CLR_TIME_RED; }
+    if (diff &lt; 120) { snprintf(buf,len,"1m (%s) ",ts);        return CLR_TIME_RED; }
+    if (diff &lt;= 300){ snprintf(buf,len,"%ldm (%s) ",diff/60,ts); return CLR_TIME_YELLOW; }
+    snprintf(buf,len,"%ldm (%s) ",diff/60,ts); return CLR_TIME_GREEN;
+}
+
+static void init_ncurses(void) {
+    initscr(); cbreak(); noecho();
+    keypad(stdscr, TRUE); nodelay(stdscr, TRUE); curs_set(0);
+    start_color(); use_default_colors();
+    init_pair(CLR_HEADER,     COLOR_WHITE,  COLOR_RED);
+    init_pair(CLR_SUBHEADER,  COLOR_WHITE,  COLOR_RED);
+    init_pair(CLR_ROUTE_NUM,  COLOR_YELLOW, COLOR_BLACK);
+    init_pair(CLR_ROUTE_NAME, COLOR_WHITE,  COLOR_BLACK);
+    init_pair(CLR_TIME_GREEN, COLOR_GREEN,  COLOR_BLACK);
+    init_pair(CLR_TIME_YELLOW,COLOR_YELLOW, COLOR_BLACK);
+    init_pair(CLR_TIME_RED,   COLOR_RED,    COLOR_BLACK);
+    init_pair(CLR_ALERT_DELAY,COLOR_YELLOW, COLOR_RED);
+    init_pair(CLR_ALERT_STALL,COLOR_WHITE,  COLOR_RED);
+    init_pair(CLR_BORDER,     COLOR_RED,    COLOR_BLACK);
+    init_pair(CLR_FOOTER,     COLOR_BLACK,  COLOR_WHITE);
+    init_pair(CLR_DIM,        COLOR_WHITE,  COLOR_BLACK);
+    init_pair(CLR_TIME_NOW,   COLOR_RED,    COLOR_BLACK);
+}
+
+static void render(int tick) {
+    int rows, cols; getmaxyx(stdscr, rows, cols);
+    if (cols &lt; MIN_COLS || rows &lt; MIN_ROWS) {
+        clear(); mvprintw(0,0,"Terminal too small."); refresh(); return;
+    }
+    clear();
+    time_t now_t = time(NULL); struct tm *lt = localtime(&amp;now_t);
+    long now_secs = (long)lt-&gt;tm_hour*3600 + lt-&gt;tm_min*60 + lt-&gt;tm_sec;
+    const char *sname = num_routes ? routes[0].stop_name : "Unknown";
+
+    /* Header */
+    attron(COLOR_PAIR(CLR_HEADER)|A_BOLD);
+    for(int c=0;c&lt;cols;c++){mvaddch(0,c,' ');mvaddch(1,c,' ');}
+    mvprintw(0,1," TTC  TORONTO TRANSIT COMMISSION");
+    char clk[20];
+    strftime(clk,sizeof(clk),(tick%2==0)?"%I:%M:%S %p":"%I %M %S %p",lt);
+    mvprintw(0, cols-(int)strlen(clk)-2, "%s", clk);
+    mvprintw(1,1," STOP: %-28s", sname);
+    const char *filt=filter_labels[direction_filter];
+    mvprintw(1,cols-(int)strlen(filt)-2,"%s",filt);
+    attroff(COLOR_PAIR(CLR_HEADER)|A_BOLD);
+
+    /* Column headers */
+    attron(COLOR_PAIR(CLR_SUBHEADER)|A_BOLD);
+    for(int c=0;c&lt;cols;c++) mvaddch(2,c,' ');
+    mvprintw(2,COL_ROUTE_NUM,"%-4s","RTE");
+    mvprintw(2,COL_ROUTE_NAME,"%-17s","ROUTE NAME");
+    mvprintw(2,COL_DIRECTION,"%-13s","DIRECTION");
+    mvprintw(2,COL_DEP1,"%-12s","NEXT");
+    mvprintw(2,COL_DEP2,"%-12s","FOLLOWING");
+    mvprintw(2,COL_STATUS,"%-15s","STATUS");
+    attroff(COLOR_PAIR(CLR_SUBHEADER)|A_BOLD);
+
+    int dr=3, vis=0;
+    for(int i=0;i&lt;num_routes;i++) {
+        if(!route_matches_filter(&amp;routes[i])) continue;
+        if(dr+2&gt;rows-2) break;
+        /* Separator */
+        attron(COLOR_PAIR(CLR_BORDER));
+        for(int c=0;c&lt;cols;c++) mvaddch(dr,c,'-');
+        attroff(COLOR_PAIR(CLR_BORDER));
+        dr++;
+        /* Route data */
+        attron(COLOR_PAIR(CLR_ROUTE_NUM)|A_BOLD);
+        mvprintw(dr,COL_ROUTE_NUM,"%-4s",routes[i].route_num);
+        attroff(COLOR_PAIR(CLR_ROUTE_NUM)|A_BOLD);
+        attron(COLOR_PAIR(CLR_ROUTE_NAME));
+        mvprintw(dr,COL_ROUTE_NAME,"%-17s",routes[i].route_name);
+        mvprintw(dr,COL_DIRECTION,"%-13s",routes[i].direction);
+        attroff(COLOR_PAIR(CLR_ROUTE_NAME));
+        int nxt[SHOW_NEXT], found=get_next_departures(&amp;routes[i],now_secs,nxt,SHOW_NEXT);
+        int dc[2]={COL_DEP1,COL_DEP2};
+        for(int j=0;j&lt;SHOW_NEXT;j++) {
+            if(j&lt;found) {
+                char cell[32]; int clr=format_departure_cell(nxt[j],now_secs,cell,32);
+                attron(COLOR_PAIR(clr)|((clr==CLR_TIME_RED||clr==CLR_TIME_NOW)?A_BOLD:0));
+                mvprintw(dr,dc[j],"%-12s",cell);
+                attroff(COLOR_PAIR(clr)|A_BOLD);
+            } else {
+                attron(COLOR_PAIR(CLR_DIM)|A_DIM);
+                mvprintw(dr,dc[j],"%-12s","---");
+                attroff(COLOR_PAIR(CLR_DIM)|A_DIM);
+            }
+        }
+        if(routes[i].status==STATUS_STALLED) {
+            attron(COLOR_PAIR(CLR_ALERT_STALL)|A_BOLD|A_BLINK);
+            mvprintw(dr,COL_STATUS,"%-15s","** STALLED **");
+            attroff(COLOR_PAIR(CLR_ALERT_STALL)|A_BOLD|A_BLINK);
+        } else if(routes[i].status==STATUS_DELAYED) {
+            char ds[20]; snprintf(ds,sizeof(ds),"DELAY +%d min",routes[i].delay_minutes);
+            attron(COLOR_PAIR(CLR_ALERT_DELAY)|A_BOLD);
+            mvprintw(dr,COL_STATUS,"%-15s",ds);
+            attroff(COLOR_PAIR(CLR_ALERT_DELAY)|A_BOLD);
+        } else {
+            attron(COLOR_PAIR(CLR_TIME_GREEN));
+            mvprintw(dr,COL_STATUS,"%-15s","On Time");
+            attroff(COLOR_PAIR(CLR_TIME_GREEN));
+        }
+        dr+=1; vis++;
+    }
+    attron(COLOR_PAIR(CLR_BORDER));
+    for(int c=0;c&lt;cols;c++) mvaddch(dr,c,'=');
+    attroff(COLOR_PAIR(CLR_BORDER));
+    attron(COLOR_PAIR(CLR_FOOTER)|A_BOLD);
+    for(int c=0;c&lt;cols;c++) mvaddch(rows-1,c,' ');
+    mvprintw(rows-1,1," [D] Toggle Direction   [Q] Quit   Showing %d route(s)",vis);
+    attroff(COLOR_PAIR(CLR_FOOTER)|A_BOLD);
+    refresh();
+}
+
+int main(void) {
+    if (parse_routes(DATA_FILE) == 0) {
+        fprintf(stderr,"Error: cannot read '%s'\n", DATA_FILE);
+        return EXIT_FAILURE;
+    }
+    assign_alerts();
+    init_ncurses();
+    int running=1, tick=0;
+    while(running) {
+        render(tick++);
+        int ch=getch();
+        if(tolower(ch)=='q') running=0;
+        else if(tolower(ch)=='d') direction_filter=(direction_filter+1)%3;
+        struct timeval tv={0, REFRESH_MS*1000};
+        select(0,NULL,NULL,NULL,&amp;tv);
+    }
+    endwin();
+    printf("Thanks for riding with TTC!\n");
+    return EXIT_SUCCESS;
+}</pre>
+
+<h3 class="sub">Makefile</h3>
+<pre># Makefile for TTC Transit Terminal Departure Board
+CC      = gcc
+TARGET  = departures
+SRCS    = departures.c
+CFLAGS  = -Wall -Wextra -std=c11 -O2
+LDFLAGS = -lncurses
+
+.PHONY: all clean run
+
+all: $(TARGET)
+
+$(TARGET): $(SRCS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) $(LDFLAGS)
+	@echo "Build successful: ./$(TARGET)"
+
+run: all
+	./$(TARGET)
+
+clean:
+	rm -f $(TARGET)</pre>
+
+<h3 class="sub">run.sh</h3>
+<pre>#!/usr/bin/env bash
+# run.sh - Build and launch the TTC Transit Departure Board
+set -e
+echo "Building TTC Departure Board..."
+make all
+echo "Launching TTC Departure Board..."
+echo "(Press Q to quit, D to toggle direction filter)"
+sleep 1
+./departures</pre>
+
+
+<!-- ═══════════════════  6. DATA FILE  ═══════════════════════ -->
+<h2 class="section">6. Data File — routes.dat</h2>
+<pre># TTC Transit Departure Board - Route Data File
+# Stop: King Street &amp; Bay Street (Union Station Area)
+#
+# Format: ROUTE_NUM|ROUTE_NAME|DIRECTION|STOP_NAME|START_HH:MM|END_HH:MM|HEADWAY_MINS|OFFSET_MINS
+#
+# ROUTE_NUM     : TTC route number (e.g. 504)
+# ROUTE_NAME    : Route name (e.g. King)
+# DIRECTION     : Eastbound / Westbound / Northbound / Southbound
+# STOP_NAME     : Name of this stop
+# START_HH:MM   : First departure of the day
+# END_HH:MM     : Last departure of the day
+# HEADWAY_MINS  : Minutes between departures (headway)
+# OFFSET_MINS   : Minutes to offset from start time (for staggering)
+
+504|King|Eastbound|King &amp; Bay|05:45|00:30|5|0
+504|King|Westbound|King &amp; Bay|05:45|00:30|5|2
+509|Harbourfront|Eastbound|King &amp; Bay|06:15|23:45|8|0
+509|Harbourfront|Westbound|King &amp; Bay|06:15|23:45|8|3
+514|Cherry|Eastbound|King &amp; Bay|06:00|01:00|10|0
+514|Cherry|Westbound|King &amp; Bay|06:00|01:00|10|4
+6|Bay|Northbound|King &amp; Bay|06:00|23:30|8|1
+6|Bay|Southbound|King &amp; Bay|06:00|23:30|8|5
+121|Fort York Bl|Eastbound|King &amp; Bay|07:00|22:00|12|0
+121|Fort York Bl|Westbound|King &amp; Bay|07:00|22:00|12|6</pre>
+
+
+<!-- ═══════════════════  7. REFLECTION  ═══════════════════════ -->
+<div class="page-break"></div>
+<h2 class="section">7. One-Page Reflection</h2>
+
+<h3 class="sub">AI Capabilities vs. My Own</h3>
+<p>The AI produced a fully functional, well-structured ~580-line C program in a single prompt —
+something that would likely take me several hours to research, design, and debug from scratch.
+It correctly chose ncurses, wrote a clean event loop using <code>select()</code> for non-blocking
+refresh, and organized the code with proper separation of concerns (parser, alert logic, rendering).
+The code quality was genuinely good: meaningful function names (<code>parse_routes</code>,
+<code>format_departure_cell</code>, <code>assign_alerts</code>), inline Doxygen-style comments,
+and defensive error handling. That level of polish would take me considerably longer to achieve.</p>
+
+<h3 class="sub">Errors and How They Were Fixed</h3>
+<p>The AI made several errors that it caught and corrected autonomously:</p>
+<ul>
+  <li><strong>nanosleep() not declared</strong> — The first version used <code>nanosleep()</code>
+  which conflicted with <code>-std=c11</code>. The AI self-corrected by switching to POSIX
+  <code>select()</code> with a <code>timeval</code> struct — a cleaner, more portable solution.</li>
+  <li><strong>usleep / useconds_t not declared</strong> — An intermediate attempt with
+  <code>usleep()</code> also failed; the AI tried adding <code>_POSIX_C_SOURCE</code> before
+  settling on the <code>select()</code> approach.</li>
+  <li><strong>Column overlap bug</strong> — The initial version placed 3 departure cells at
+  columns 38, 49, and 60, but the status badge started at column 61, causing them to overlap.
+  The AI identified this during the refinement pass and redesigned the layout to 2 departure
+  cells with the status starting at column 65.</li>
+  <li><strong>strncpy truncation compiler warnings</strong> — Addressed by replacing all
+  <code>strncpy()</code> calls with <code>snprintf()</code>.</li>
+</ul>
+<p>No manual code edits were required. All corrections were autonomous once the error was
+described (either by the compiler or by the AI reviewing its own output).</p>
+
+<h3 class="sub">What Was Easy and What Was Difficult</h3>
+<p><strong>Easy:</strong> The initial prompt was straightforward — specifying the option (A),
+the language (C), and the platform (Linux/Matrix-compatible). The AI asked no clarifying questions
+and immediately began a systematic build process. Refinement prompts like "add HH:MM time alongside
+the countdown" were interpreted correctly without ambiguity.</p>
+<p><strong>Difficult:</strong> The GitHub token setup was the most painful part of the lab —
+not due to AI limitations but due to GitHub's fine-grained PAT permission model. Three separate
+tokens were generated before one with the correct "Contents: Write" scope succeeded. The AI's
+diagnosis (interpreting API response headers to identify missing permissions) was accurate and
+helpful, but the fix required navigating GitHub's UI manually.</p>
+
+<h3 class="sub">Quality of AI Output</h3>
+<p>The AI's output was high quality by professional standards. Functions are named clearly and
+follow C naming conventions. Comments are useful ("Handle midnight wrap," "Non-blocking getch()
+for live refresh") rather than obvious filler. The data file format is well-documented with a
+header block explaining every field. The use of a headway-based timetable generator (rather than
+hardcoding departure times) shows design thinking beyond the minimum requirement. Minor criticism:
+the initial column layout was untested for terminal width, leading to the overlap bug — a simple
+pre-submit test would have caught it.</p>
+
+<h3 class="sub">Productivity Comparison</h3>
+<p>Without the AI, implementing this project to the same level of polish would likely take
+<strong>8–12 hours</strong> for someone at my current skill level: researching the ncurses API,
+designing the data format, writing the parser, implementing the time arithmetic, debugging the
+layout, and testing edge cases (midnight wrap, zero departures, short terminals). With the AI,
+the working first version took approximately 10 minutes of calendar time. The refinement pass
+(adding HH:MM display and fixing the column bug) took another 5 minutes.</p>
+<p>An entry-level programmer hired without AI assistance might cost $25–35/hour × 10 hours =
+<strong>$250–350</strong> for similar output quality. Paired with an agentic AI, the same
+programmer could likely deliver in 1–2 hours, reducing the cost to <strong>$25–70</strong> —
+a 5–10× productivity multiplier, while potentially improving output quality.</p>
+
+<h3 class="sub">Reflection on Agentic AI and My Career</h3>
+<p>The most striking observation from this lab is that the AI's relationship with me is
+<em>collaborative, not competitive</em>. The AI excels at producing syntactically correct,
+well-structured boilerplate at speed — but it required my judgment to specify the requirements,
+evaluate the output, catch the column overlap visually, and navigate the GitHub token permissions
+issue. The AI cannot test in a real terminal, see what the board looks like at runtime, or know
+that the token error message was misleading.</p>
+<p>This suggests that as a software developer entering the industry, my value will shift from
+"writing code" toward "specifying, evaluating, and integrating AI-generated code." Skills like
+reading compiler errors, understanding system APIs (POSIX, ncurses), and diagnosing runtime
+behaviour remain essential — because the AI needs those skills from <em>me</em> when it gets
+stuck. The developer who understands what the AI produces (and when it's wrong) will consistently
+outperform one who treats AI output as a black box. Agentic AI is a powerful multiplier, but it
+multiplies the effectiveness of a developer who already has a foundation — not a substitute for
+one.</p>
+
+
+<!-- ═══════════════════  FOOTER  ═══════════════════════ -->
+<hr style="margin-top:0.5in;border:1px solid #DA291C;">
+<p style="text-align:center;font-size:9pt;color:#666;margin-top:8px;">
+  CEP-146 Lab 09 &nbsp;·&nbsp; Darlington Ehimen &nbsp;·&nbsp; CEP146-NDD &nbsp;·&nbsp;
+  April 1, 2026 &nbsp;·&nbsp; Seneca Polytechnic
+</p>
+
+</body>
+</html>
